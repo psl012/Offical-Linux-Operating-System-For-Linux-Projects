@@ -78,12 +78,19 @@ int ExecuteCommands(int margc, char * commands[], char * paths[])
     	}
     	else if((strcmp(commands[0], "path")) == 0)
     	{
-    		int i = 0;
-    		for(; i < margc; i++)
+    		if(margc == 1)
     		{
-    			paths[i - 1] = commands[i];
+    			paths[0] = NULL;
     		}
-    		paths[i] = NULL;
+    		else
+    		{
+	    		int i = 1;
+	    		for(; i < margc; i++)
+	    		{
+	    			paths[i - 1] = commands[i];
+	    		}
+	    		paths[i] = NULL;
+    		}
     	}
     	
     	// NOT BUILT IN
@@ -95,12 +102,16 @@ int ExecuteCommands(int margc, char * commands[], char * paths[])
     		{
 			if(strcmp(paths[i], "/bin") == 0) my_bin = strdup("/bin");
 			i++;
+    		} 	
+    		if(my_bin == NULL) 
+    		{
+    			PrintError();
+    			return -1;
     		}
-    		
+    			
     		int rc = fork();
     		if(rc == 0)
-    		{
-    		
+    		{	
 	    		char * myargv[10];
 	    		strcat(my_bin, "/ls");
 	    		myargv[0] = my_bin;
@@ -124,10 +135,55 @@ int ExecuteCommands(int margc, char * commands[], char * paths[])
     		
     		return 0;
     	}
+    	
+    	else if(margc == 1)
+    	{
+    		char my_directory[1024];
+    		getcwd(my_directory, sizeof(my_directory));
+    		
+    		char * temp = NULL;
+    		char * rev_directory = NULL;
+    		int i = 0;
+    		while(paths[i] != NULL)
+		{
+			temp = strdup(my_directory);
+			strcat(temp, paths[i]);
+			strcat(temp, "/");
+			strcat(temp, commands[0]);
+			if(access(temp, X_OK) == 0) 
+			{
+				rev_directory = strdup(temp);								
+			}
+			i++;
+		}
+		
+		if(rev_directory == NULL) 
+		{
+			PrintError();
+			return -1;
+		}
+    		
+    		int rc = fork();
+    		if(rc == 0)
+    		{
+    			
+    			char * myargv[10];
+    		
+    			
+    			myargv[0] = strdup(rev_directory);
+			myargv[1] = NULL;
+			execv(myargv[0], myargv);  			
+    		}
+    		
+    		else
+    		{
+    			wait(NULL);
+		}
+    	}
+    	
     	else
     	{
-    		PrintError();
-    		//printf("GOTME");
+    		//PrintError();
     		return -1;
 	}
 	return 0;	    	
@@ -139,6 +195,8 @@ void PrintError()
 	char error_message[30] = "An error has occurred\n";
 	write(STDERR_FILENO, error_message, strlen(error_message)); 
 }
+
+
 
 /**
 	//char * paths[BUFF_SIZE];
