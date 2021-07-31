@@ -6,33 +6,32 @@
 
 void PrintError();
 int ParseCommand(char * commands[], char * line_command);
-int ExecuteCommands(int margc, char * commands[]);
-
-
+int ExecuteCommands(int margc, char * commands[], char * paths[]);
 
 int main(int argc, char *argv[])
 {
 	const int BUFF_SIZE = 1024;
-
-	char * command_lines[BUFF_SIZE];
 	
+	char * paths[BUFF_SIZE];
+	paths[0] = "/bin";
+	paths[1] = NULL;
 	
-	FILE * fr = fopen(argv[1], "r");
+	char * command_lines[BUFF_SIZE];	
+	
 	
 	if(argc == 2)
 	{
-		//char * batch_commands[BUFF_SIZE];
 		char * command = NULL;
 		size_t linecap = 0;
+		
+		FILE * fr = fopen(argv[1], "r");
 		
 		while(getline(&command, &linecap, fr) > 0)
    		{
 			int margc = ParseCommand(command_lines, command);
-   			ExecuteCommands(margc, command_lines);
+   			ExecuteCommands(margc, command_lines, paths);
 		}
 	}
-	
-	
 	
 	return 0;
 }
@@ -50,7 +49,7 @@ int ParseCommand(char * commands[], char * line_command)
 }
 
 
-int ExecuteCommands(int margc, char * commands[])
+int ExecuteCommands(int margc, char * commands[], char * paths[])
 {
 	// BUILT-IN COMMANDS
 	// Exit
@@ -64,7 +63,7 @@ int ExecuteCommands(int margc, char * commands[])
     	{
     		if(margc == 2) 
     		{	  
-    		//	printf("%c", commands[1][2]);
+    			//printf("%c", commands[1][2]);
     			if(chdir(commands[1]) != 0) 
     			{
     				PrintError();
@@ -77,15 +76,45 @@ int ExecuteCommands(int margc, char * commands[])
     			return -1;
     		}
     	}
+    	else if((strcmp(commands[0], "path")) == 0)
+    	{
+    		if(margc == 1)
+    		{
+    			paths[0] = NULL;
+    		}
+    		else
+    		{
+	    		int i = 1;
+	    		for(; i < margc; i++)
+	    		{
+	    			paths[i - 1] = commands[i];
+	    		}
+	    		paths[i] = NULL;
+    		}
+    	}
     	
     	// NOT BUILT IN
     	else if((strcmp(commands[0], "ls")) == 0) 
     	{
+    		int i = 0;
+    		char * my_bin = NULL;
+    		while(paths[i] != NULL)
+    		{
+			if(strcmp(paths[i], "/bin") == 0) my_bin = strdup("/bin");
+			i++;
+    		} 	
+    		if(my_bin == NULL) 
+    		{
+    			PrintError();
+    			return -1;
+    		}
+    			
     		int rc = fork();
     		if(rc == 0)
-    		{
+    		{	
 	    		char * myargv[10];
-	    		myargv[0] = strdup("/bin/ls");
+	    		strcat(my_bin, "/ls");
+	    		myargv[0] = my_bin;
 	    		if(margc == 1) 
 	    		{
 	    			myargv[1] = NULL;
@@ -106,9 +135,55 @@ int ExecuteCommands(int margc, char * commands[])
     		
     		return 0;
     	}
+    	
+    	else if(margc == 1)
+    	{
+    		char my_directory[1024];
+    		getcwd(my_directory, sizeof(my_directory));
+    		
+    		char * temp = NULL;
+    		char * rev_directory = NULL;
+    		int i = 0;
+    		while(paths[i] != NULL)
+		{
+			temp = strdup(my_directory);
+			strcat(temp, paths[i]);
+			strcat(temp, "/");
+			strcat(temp, commands[0]);
+			if(access(temp, X_OK) == 0) 
+			{
+				rev_directory = strdup(temp);								
+			}
+			i++;
+		}
+		
+		if(rev_directory == NULL) 
+		{
+			PrintError();
+			return -1;
+		}
+    		
+    		int rc = fork();
+    		if(rc == 0)
+    		{
+    			
+    			char * myargv[10];
+    		
+    			
+    			myargv[0] = strdup(rev_directory);
+			myargv[1] = NULL;
+			execv(myargv[0], myargv);  			
+    		}
+    		
+    		else
+    		{
+    			wait(NULL);
+		}
+    	}
+    	
     	else
     	{
-    		PrintError();
+    		//PrintError();
     		return -1;
 	}
 	return 0;	    	
@@ -120,6 +195,8 @@ void PrintError()
 	char error_message[30] = "An error has occurred\n";
 	write(STDERR_FILENO, error_message, strlen(error_message)); 
 }
+
+
 
 /**
 	//char * paths[BUFF_SIZE];
