@@ -6,33 +6,32 @@
 
 void PrintError();
 int ParseCommand(char * commands[], char * line_command);
-int ExecuteCommands(int margc, char * commands[]);
-
-
+int ExecuteCommands(int margc, char * commands[], char * paths[]);
 
 int main(int argc, char *argv[])
 {
 	const int BUFF_SIZE = 1024;
-
-	char * command_lines[BUFF_SIZE];
 	
+	char * paths[BUFF_SIZE];
+	paths[0] = "/bin";
+	paths[1] = NULL;
 	
-	FILE * fr = fopen(argv[1], "r");
+	char * command_lines[BUFF_SIZE];	
+	
 	
 	if(argc == 2)
 	{
-		//char * batch_commands[BUFF_SIZE];
 		char * command = NULL;
 		size_t linecap = 0;
+		
+		FILE * fr = fopen(argv[1], "r");
 		
 		while(getline(&command, &linecap, fr) > 0)
    		{
 			int margc = ParseCommand(command_lines, command);
-   			ExecuteCommands(margc, command_lines);
+   			ExecuteCommands(margc, command_lines, paths);
 		}
 	}
-	
-	
 	
 	return 0;
 }
@@ -50,7 +49,7 @@ int ParseCommand(char * commands[], char * line_command)
 }
 
 
-int ExecuteCommands(int margc, char * commands[])
+int ExecuteCommands(int margc, char * commands[], char * paths[])
 {
 	// BUILT-IN COMMANDS
 	// Exit
@@ -64,7 +63,7 @@ int ExecuteCommands(int margc, char * commands[])
     	{
     		if(margc == 2) 
     		{	  
-    		//	printf("%c", commands[1][2]);
+    			//printf("%c", commands[1][2]);
     			if(chdir(commands[1]) != 0) 
     			{
     				PrintError();
@@ -77,15 +76,34 @@ int ExecuteCommands(int margc, char * commands[])
     			return -1;
     		}
     	}
+    	else if((strcmp(commands[0], "path")) == 0)
+    	{
+    		int i = 0;
+    		for(; i < margc; i++)
+    		{
+    			paths[i - 1] = commands[i];
+    		}
+    		paths[i] = NULL;
+    	}
     	
     	// NOT BUILT IN
     	else if((strcmp(commands[0], "ls")) == 0) 
     	{
+    		int i = 0;
+    		char * my_bin = NULL;
+    		while(paths[i] != NULL)
+    		{
+			if(strcmp(paths[i], "/bin") == 0) my_bin = strdup("/bin");
+			i++;
+    		}
+    		
     		int rc = fork();
     		if(rc == 0)
     		{
+    		
 	    		char * myargv[10];
-	    		myargv[0] = strdup("/bin/ls");
+	    		strcat(my_bin, "/ls");
+	    		myargv[0] = my_bin;
 	    		if(margc == 1) 
 	    		{
 	    			myargv[1] = NULL;
@@ -109,6 +127,7 @@ int ExecuteCommands(int margc, char * commands[])
     	else
     	{
     		PrintError();
+    		//printf("GOTME");
     		return -1;
 	}
 	return 0;	    	
