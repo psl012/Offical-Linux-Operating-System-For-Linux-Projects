@@ -1,6 +1,4 @@
-path tests
-p1.sh
-path
-p1.sh
-ls
+ls tests/p2a-test>/tmp/output11
+cat /tmp/output11
+rm -f /tmp/output11
 exit
