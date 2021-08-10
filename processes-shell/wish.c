@@ -201,6 +201,12 @@ int ExecuteCommands(int margc, char * commands[], char * paths[])
     		}
     	}
     	
+    	// hard-coded error for singeline only containing &
+    	else if(commands[0][0] == '&')
+    	{
+    		return 0;
+    	}
+    	
     	// NOT BUILT IN
     	else if((strcmp(commands[0], "rm")) == 0)
     	{
@@ -236,7 +242,46 @@ int ExecuteCommands(int margc, char * commands[], char * paths[])
     			return 1;	
     		}
   	 			
-    		int rc = fork();
+    		int rc;
+    		
+    		char * processed_commands[margc];
+    	  		
+    		int pc = 0;
+    		int p_index = 0;
+    		int start_index = 0;
+    		 		
+    		for(; pc < margc; pc++)
+    		{
+    			if(commands[pc][0] != '&')
+    			{
+    				processed_commands[p_index] = strdup(commands[pc]);
+    				p_index++;
+			}
+    		
+			if(commands[pc][0] == '&' || pc == margc - 1)
+    			{
+    				p_index = 0;
+				
+				
+				rc = fork();
+		    		if(rc == 0)
+		    		{		
+    					if(commands[pc][0] == '&') StandardArgvExec(my_bin, "/echo", processed_commands, pc - start_index, 0);			    
+		    			else StandardArgvExec(my_bin, "/echo", processed_commands, pc - start_index + 1, 0);			    
+		    		}
+		    		else
+		    		{
+					start_index =  pc;
+		    		}
+    			}    			
+    		}
+    		
+    		if(rc != 0)
+    		{
+    			wait(NULL);
+    		}
+    		/**
+    		rc = fork();
     		if(rc == 0)
     		{	
     			StandardArgvExec(my_bin, "/echo", commands, margc, 0);		    		
@@ -245,7 +290,7 @@ int ExecuteCommands(int margc, char * commands[], char * paths[])
     		{
 			wait(NULL);
     		}
-    		
+    			*/
     		return 0;
     	}
     	
@@ -271,10 +316,7 @@ int ExecuteCommands(int margc, char * commands[], char * paths[])
 		{
 			wait(NULL);
 		}
-		
-
     	} 
-    	
     	
     	else if((strcmp(commands[0], "ls")) == 0) 
     	{
