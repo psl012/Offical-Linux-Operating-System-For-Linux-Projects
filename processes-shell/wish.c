@@ -61,6 +61,7 @@ int ParseCommand(char * commands[], char * line_command)
 	char * directory;
 	int whiteStart = 0;
 	
+	
 
 	// for whitespace on start
 	for(; whiteStart < strlen(line_command); whiteStart++)
@@ -97,55 +98,70 @@ int ParseCommand(char * commands[], char * line_command)
 		}
 	}
 	
-	while(	(directory = strsep(&line_command, " ")) != NULL)
-	{	
+	// for giving spaces to '&' change how parsing works using just string manipulation
+	int jj = 0;
+	char * jj_directory;
+	char * holder;
+	int start = 0;
+	jj_directory = strdup(line_command);
 	
-		
-			if(strchr(directory, '>') != NULL)
-			{
-							
-				if(directory[0] == '>')
-				{
-					commands[i] = ">";
-					strsep(&directory, ">");
-				}
-				else
-				{
-					commands[i] = strsep(&directory, ">");
-					i++;
-					commands[i] = ">";
-						
-				}
-				
-				isRedirection = 1;
-				
-				if(strlen(directory) > 1)
-				{
-					line_command = strdup(directory);
-					
-					if(line_command[0] == '\n') 
-					{
-						i++;
-						break;
-					}
-				}
-			}
-			else
-			{
-				commands[i] = strdup(directory);
-			}
-		
+	void ProcessParsing(int j)
+	{
+		holder = strdup(jj_directory);
+		jj_directory[j] = '\0';
+		if(strlen(jj_directory) > 0)
+		{
+			commands[i] = strdup(jj_directory);
 			i++;
-		
+		}
+		jj_directory = &holder[j+1];		
 	}
+	
+	
+	for(int j = 0; j < strlen(jj_directory); j++)
+	{
+		//printf("%i\n", j);
+		if(jj_directory[j] == ' ')
+		{
+			ProcessParsing(j);
+			j = -1; // resets the j counter;
+		}
+		else if(jj_directory[j] == '>')
+		{
+			ProcessParsing(j);
+			j = -1; // resets the j counter;
+			
+			commands[i] = ">";
+			i++;
+			isRedirection = 1;
+		}
+		
+		else if(jj_directory[j] == '&')
+		{
+			ProcessParsing(j);
+			j = -1; // resets the j counter;
+			
+			commands[i] = "&";
+			i++;
+		}
 
-	commands[i - 1] = strsep(&commands[i-1], "\n");
-
-	// printf("%s\n", commands[0]);
+		else if(j == strlen(jj_directory) - 1)
+		{
+			commands[i] = strdup(jj_directory);
+			i++;	
+		}
+	}
+	
+	/**
+	for(int h = 0; h < i; h++)
+	{
+		printf("%s\n", commands[h]);
+	}*/
 	// printf("%s\n", commands[1]);
 	// printf("%s\n", commands[2]);
 	// printf("%s\n", commands[3]);
 	// printf("%i\n", i);
+	//
 	
 	return i;
 }
@@ -334,21 +350,31 @@ int ExecuteCommands(int margc, char * commands[], char * paths[])
     	
     	else if(margc > 1)
     	{
-    		int rc;
-    		
     		char * processed_commands[margc];
     		char my_directory[1024];
 		char rev_directory[1024];
 		int pc = 0;
     		int p_index = 0;
     		int start_index = 0;
-    		 		
+    		char * output_Directory[1024];
+    		
+    		
+    		char * input_directories[1024];
+		int od_index = 0;
+		int isRedirectionArray[1024];
+
     		for(; pc < margc; pc++)
     		{
     			if(commands[pc][0] != '&')
     			{
     				processed_commands[p_index] = strdup(commands[pc]);
     				p_index++;
+			}
+			
+			if(commands[pc] == ">")
+			{
+				output_Directory[od_index] = strdup(commands[pc+1]);
+				isRedirectionArray[od_index]  = 1;
 			}
     		
 			if(commands[pc][0] == '&' || pc == margc - 1)
@@ -357,7 +383,6 @@ int ExecuteCommands(int margc, char * commands[], char * paths[])
 				
     				getcwd(my_directory, sizeof(my_directory));
 				rev_directory[0] = '\0';
-
 				FindPath(paths, rev_directory, my_directory, commands[start_index]);
 		 		
 				if(rev_directory[0] == '\0') 
@@ -365,31 +390,40 @@ int ExecuteCommands(int margc, char * commands[], char * paths[])
 					PrintError();
 					return 1;
 				}
-			
 				
-				rc = fork();
-		    		if(rc == 0)
-		    		{
-	  				char * myargv[10];  				
-    					myargv[0] = strdup(rev_directory);
-					myargv[1] = NULL;
-					execv(myargv[0], myargv);  							    
-		    		}
-		    		
-		    		else
-		    		{
-		    			wait(NULL);
-					start_index =  pc + 1;
-		    		}
-    			}    			
-    		}
-    		
-    		if(rc != 0)
-    		{
-    			wait(NULL);
-    		}
-    		
-    		return 0;
+				input_directories[od_index] = strdup(rev_directory);
+				od_index++;
+				start_index = pc + 1;	
+			}
+		}
+
+		int rc;
+		
+	
+		for(int ff = 0; ff < od_index; ff++)
+		{
+			rc = fork();
+	    		if(rc == 0)
+	    		{
+				char * myargv[10];  			
+				myargv[0] = strdup(input_directories[ff]);
+				myargv[1] = NULL;
+				
+				if(isRedirectionArray[ff] == 1)
+				{
+					fclose(stdout);
+					FILE * outputFile = fopen(output_Directory[ff], "w");
+					stdout = outputFile;	
+				}
+				execv(myargv[0], myargv);  							    
+	    		}
+	    		else
+	    		{
+	    			wait(NULL);
+	    		}
+		 }
+		 		 	
+		return 0;
     	}
     	
     	else if(margc == 1)
@@ -407,7 +441,7 @@ int ExecuteCommands(int margc, char * commands[], char * paths[])
 			PrintError();
 			return -1;
 		}
-    		
+
     		int rc = fork();
     		if(rc == 0)
     		{
@@ -430,6 +464,7 @@ int ExecuteCommands(int margc, char * commands[], char * paths[])
     		//PrintError();
     		return -1;
 	}
+	  
 	return 0;	    	
 }
 
@@ -506,17 +541,16 @@ int IsBadOutputDirectory(char * my_directory)
 void FindPath(char * paths[], char rev_directory[], char my_directory[], char * operator)
 {
 	int i = 0;
-
+	
 	while(paths[i] != NULL)
 	{
-	
+		
 		strcpy(rev_directory, my_directory);
 			
 		strcat(rev_directory, "/");
 		strcat(rev_directory, paths[i]);
 		strcat(rev_directory, "/");
 		strcat(rev_directory, operator);
-		
 		if(access(rev_directory, X_OK) == 0) 
 		{
 			break;							
@@ -540,15 +574,15 @@ void StandardArgvExec(char * my_bin, char * operation, char * commands[], int ma
 	int isErrorDirectory = 0;
 	
 	myargv[0] = my_bin;
-
+			    			
 	if(isRedirection == 0)
 	{
-		
 		// bad input directory
 		if((isErrorDirectory = IsBadDirectory(commands[margc - 1], operation)) == 1 && needDirectory == 1) 
 		{
 			if(strcmp(operation, "/ls") != 0)
 			{  
+
 				PrintError();
 				return;
 			}
@@ -563,16 +597,19 @@ void StandardArgvExec(char * my_bin, char * operation, char * commands[], int ma
 				isHaveInputDirectory = 1;
 			}
 		}
+		i--;
 		
 		if(isHaveInputDirectory == 0 && isErrorDirectory == 0)
 		{
-			i++;
+			i+= 2;
 			char *buff;
 			myargv[i] = getcwd(buff, 1024);	
 		}
 
 		if(strcmp(operation, "/ls") == 0 && access(myargv[i], F_OK) != 0)
 		{
+			//printf("%s\n", myargv[1]);
+			//printf("%i\n", access(myargv[i], F_OK));
 			LSError();
 
 			return;
@@ -649,7 +686,7 @@ void StandardArgvExec(char * my_bin, char * operation, char * commands[], int ma
 		}
 		
 		myargv[i+1] = NULL;
-		
+
 		fclose(stdout);
 		FILE * outputFile = fopen(commands[j], "w");
 		stdout = outputFile;	
